@@ -12,9 +12,9 @@ let keyReleaseTimer = null;
 const addToHistory = (text) => {
     if (text && text.trim() && !clipboardHistory.includes(text)) {
         clipboardHistory.unshift(text);
-        // Keep only last 50 items
-        if (clipboardHistory.length > 50) {
-            clipboardHistory = clipboardHistory.slice(0, 50);
+        // Keep only last 100 items
+        if (clipboardHistory.length > 100) {
+            clipboardHistory = clipboardHistory.slice(0, 100);
         }
         updateTrayMenu();
         if (mainWindow) {
@@ -134,8 +134,8 @@ const handleKeyPress = () => {
 const createWindow = () => {
     const indexHTMLPath = path.resolve(__dirname, '../resources/index.html');
     mainWindow = new BrowserWindow({
-        width: 450,
-        height: 500,
+        width: 436,
+        height: 290,
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false
@@ -149,14 +149,24 @@ const createWindow = () => {
         skipTaskbar: true,
         frame: false,
         transparent: true,
-        vibrancy: 'under-window',
-        backgroundColor: 'rgba(0, 0, 0, 0)'
+        hasShadow: false,
+        titleBarStyle: 'customButtonsOnHover'
     });
 
     mainWindow.loadFile(indexHTMLPath);
 
-    // Center the window
-    mainWindow.center();
+    // Manually center the window both horizontally and vertically
+    const { screen } = require('electron');
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+
+    const windowWidth = 436;
+    const windowHeight = 290;
+
+    const x = Math.round((screenWidth - windowWidth) / 2);
+    const y = Math.round((screenHeight - windowHeight) / 2);
+
+    mainWindow.setPosition(x, y);
 
     // Hide window when closed instead of quitting
     mainWindow.on('close', (event) => {
