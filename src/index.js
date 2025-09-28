@@ -103,7 +103,7 @@ const startClipboardMonitoring = () => {
             lastClipboardText = currentClipboardText;
             addToHistory(currentClipboardText);
         }
-    }, 1000); // Check every second
+    }, 250); // Check every 250ms for faster response
 };
 
 // Handle key release detection using a timer-based approach
