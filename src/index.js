@@ -84,6 +84,8 @@ const updateTrayMenu = () => {
         {
             label: 'Quit',
             click: () => {
+                console.log('Quit requested from tray menu');
+                app.isQuiting = true;
                 app.quit();
             }
         }
@@ -155,6 +157,11 @@ const createWindow = () => {
 
     mainWindow.loadFile(indexHTMLPath);
 
+    // Hide from dock on macOS
+    if (process.platform === 'darwin') {
+        app.dock.hide();
+    }
+
     // Manually center the window both horizontally and vertically
     const { screen } = require('electron');
     const primaryDisplay = screen.getPrimaryDisplay();
@@ -170,8 +177,10 @@ const createWindow = () => {
 
     // Hide window when closed instead of quitting
     mainWindow.on('close', (event) => {
-        event.preventDefault();
-        mainWindow.hide();
+        if (!app.isQuiting) {
+            event.preventDefault();
+            mainWindow.hide();
+        }
     });
 
     // Add window focus/blur handlers for key release detection
@@ -237,6 +246,11 @@ const registerGlobalShortcut = () => {
 };
 
 app.whenReady().then(createWindow);
+
+app.on('before-quit', (event) => {
+    console.log('App is quitting...');
+    app.isQuiting = true;
+});
 
 app.on('window-all-closed', () => {
     // Don't quit on macOS, keep running in tray
