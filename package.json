@@ -1,0 +1,23 @@
+{
+  "name": "clipboard-manager",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "clipboard",
+    "manager",
+    "electron",
+    "tray",
+    "utility"
+  ],
+  "author": "nrdshgtm@gmail.com",
+  "license": "MIT",
+  "description": "A system tray clipboard manager that keeps track of your copied items",
+  "dependencies": {
+    "electron": "^38.1.2"
+  }
+}

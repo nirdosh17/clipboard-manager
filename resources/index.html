@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clipper</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: transparent;
+            color: #fff;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+        }
+
+
+        .clipboard-container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .clipboard-item {
+            background: rgba(255, 255, 255, 0.95);
+            color: #333;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            max-width: 80%;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .clipboard-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .clipboard-item:active {
+            transform: translateY(0);
+        }
+
+        .clipboard-text {
+            font-size: 16px;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+            line-height: 1.5;
+            text-align: center;
+        }
+
+
+        .footer {
+            background: rgba(0, 0, 0, 0.6);
+            color: rgba(255, 255, 255, 0.8);
+            padding: 15px 20px;
+            text-align: center;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 12px;
+            margin-top: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .index-display {
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .navigation-instructions {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .empty-state h3 {
+            margin-bottom: 10px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="clipboard-container" id="clipboardContainer">
+        <div class="empty-state" id="emptyState">
+            <h3>No clipboard items yet</h3>
+            <p>Start copying text to see your clipboard history here</p>
+        </div>
+
+        <div class="clipboard-item" id="clipboardItem" style="display: none;" onclick="pasteCurrentItem()">
+            <div class="clipboard-text" id="clipboardText"></div>
+        </div>
+    </div>
+
+    <div class="footer" id="footer" style="display: none;">
+        <div class="index-display" id="indexDisplay">1-50</div>
+        <div class="navigation-instructions">← → to navigate</div>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+        let clipboardHistory = [];
+        let currentIndex = 0; // 0-based index, 0 = latest item
+        let isInteracting = false;
+
+        // Listen for clipboard history updates
+        ipcRenderer.on('update-clipboard-history', (event, history) => {
+            clipboardHistory = history;
+            currentIndex = 0; // Always start with the latest item
+            renderCurrentItem();
+        });
+
+        function renderCurrentItem() {
+            const emptyState = document.getElementById('emptyState');
+            const clipboardItem = document.getElementById('clipboardItem');
+            const footer = document.getElementById('footer');
+            const clipboardText = document.getElementById('clipboardText');
+            const indexDisplay = document.getElementById('indexDisplay');
+
+            if (clipboardHistory.length === 0) {
+                emptyState.style.display = 'block';
+                clipboardItem.style.display = 'none';
+                footer.style.display = 'none';
+                return;
+            }
+
+            // Show single item view
+            emptyState.style.display = 'none';
+            clipboardItem.style.display = 'flex';
+            footer.style.display = 'flex';
+
+            // Ensure currentIndex is within bounds
+            currentIndex = Math.max(0, Math.min(currentIndex, clipboardHistory.length - 1));
+
+            // Display current item
+            const currentItem = clipboardHistory[currentIndex];
+            clipboardText.textContent = currentItem;
+
+            // Update index display (1-based, where 1 is latest)
+            const displayIndex = currentIndex + 1;
+            const totalItems = clipboardHistory.length;
+            indexDisplay.textContent = `${displayIndex}-${totalItems}`;
+        }
+
+        function navigateLeft() {
+            if (clipboardHistory.length === 0) return;
+            currentIndex = Math.min(currentIndex + 1, clipboardHistory.length - 1);
+            renderCurrentItem();
+        }
+
+        function navigateRight() {
+            if (clipboardHistory.length === 0) return;
+            currentIndex = Math.max(currentIndex - 1, 0);
+            renderCurrentItem();
+        }
+
+        function pasteCurrentItem() {
+            if (clipboardHistory.length > 0 && clipboardHistory[currentIndex]) {
+                pasteItem(clipboardHistory[currentIndex]);
+            }
+        }
+
+        function pasteItem(text) {
+            ipcRenderer.send('paste-item', text);
+        }
+
+        // Keyboard navigation
+        function handleKeyDown(event) {
+            if (clipboardHistory.length === 0) return;
+
+            isInteracting = true;
+
+            switch(event.key) {
+                case 'ArrowLeft':
+                    event.preventDefault();
+                    navigateLeft();
+                    break;
+                case 'ArrowRight':
+                    event.preventDefault();
+                    navigateRight();
+                    break;
+                case 'Enter':
+                    event.preventDefault();
+                    pasteCurrentItem();
+                    break;
+                case 'Escape':
+                    event.preventDefault();
+                    ipcRenderer.send('hide-window');
+                    break;
+            }
+
+            // Reset interaction flag after a short delay
+            setTimeout(() => {
+                isInteracting = false;
+            }, 100);
+        }
+
+        function clearHistory() {
+            if (confirm('Are you sure you want to clear all clipboard history?')) {
+                ipcRenderer.send('clear-clipboard-history');
+            }
+        }
+
+        // Listen for clear history response
+        ipcRenderer.on('clipboard-history-cleared', () => {
+            clipboardHistory = [];
+            currentIndex = 0;
+            renderCurrentItem();
+        });
+
+        // Listen for user interaction check
+        ipcRenderer.on('check-user-interaction', () => {
+            ipcRenderer.send('user-interaction-response', isInteracting);
+        });
+
+        // Listen for user interaction events
+        document.addEventListener('mousedown', () => {
+            isInteracting = true;
+        });
+
+        document.addEventListener('keydown', (e) => {
+            isInteracting = true;
+            // Handle keyboard navigation
+            handleKeyDown(e);
+        });
+
+        // Reset interaction flag after a delay
+        const resetInteraction = () => {
+            setTimeout(() => {
+                isInteracting = false;
+            }, 200);
+        };
+
+        document.addEventListener('mouseup', resetInteraction);
+        document.addEventListener('keyup', resetInteraction);
+
+        // Focus window when shown
+        window.addEventListener('focus', () => {
+            // Focus the container so keyboard events work
+            document.getElementById('clipboardContainer').focus();
+        });
+
+        // Make the container focusable
+        document.addEventListener('DOMContentLoaded', () => {
+            const container = document.getElementById('clipboardContainer');
+            container.setAttribute('tabindex', '0');
+            container.focus();
+        });
+    </script>
+</body>
+</html>
