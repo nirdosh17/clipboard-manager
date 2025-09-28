@@ -141,7 +141,7 @@ const createWindow = () => {
             contextIsolation: false
         },
         show: false, // Don't show window on startup
-        icon: path.resolve(__dirname, '../resources/electron.png'),
+        icon: path.resolve(__dirname, '../resources/icon-50.png'),
         resizable: false,
         minimizable: false,
         maximizable: false,
@@ -188,7 +188,7 @@ const createWindow = () => {
     });
 
     // create system tray
-    const iconPath = path.resolve(__dirname, '../resources/electron.png');
+    const iconPath = path.resolve(__dirname, '../resources/icon-50.png');
     const { nativeImage } = require('electron');
 
     // Load and resize the icon

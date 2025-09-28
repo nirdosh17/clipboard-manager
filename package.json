@@ -5,6 +5,9 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
+    "build": "electron-builder",
+    "build:mac": "electron-builder --mac",
+    "build:dmg": "electron-builder --mac dmg",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -17,7 +20,46 @@
   "author": "nrdshgtm@gmail.com",
   "license": "MIT",
   "description": "A system tray clipboard manager that keeps track of your copied items",
-  "dependencies": {
-    "electron": "^38.1.2"
+  "devDependencies": {
+    "electron": "^38.1.2",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.nirdosh.clipboard-manager",
+    "productName": "Clipboard Manager",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "resources/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": "dmg",
+      "icon": "resources/icon-512.png"
+    },
+    "dmg": {
+      "title": "Clipboard Manager",
+      "icon": "resources/icon-512.png",
+      "background": null,
+      "window": {
+        "width": 540,
+        "height": 380
+      },
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    }
   }
 }
