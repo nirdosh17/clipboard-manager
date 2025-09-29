@@ -25,8 +25,16 @@ const getCurrentActiveApp = () => {
 
 // Function to add item to clipboard history
 const addToHistory = (text) => {
-    if (text && text.trim() && !clipboardHistory.includes(text)) {
+    if (text && text.trim()) {
+        // Remove existing item if it exists
+        const existingIndex = clipboardHistory.indexOf(text);
+        if (existingIndex !== -1) {
+            clipboardHistory.splice(existingIndex, 1);
+        }
+
+        // Add to the beginning (latest position)
         clipboardHistory.unshift(text);
+
         // Keep only last 100 items
         if (clipboardHistory.length > 100) {
             clipboardHistory = clipboardHistory.slice(0, 100);
