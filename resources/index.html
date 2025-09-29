@@ -102,6 +102,41 @@
             letter-spacing: -0.01em;
         }
 
+        .preview-row {
+            margin-top: 8px;
+            padding: 6px 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+            border-left: 2px solid rgba(255, 255, 255, 0.2);
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.8);
+            word-wrap: break-word;
+            white-space: pre-wrap;
+            line-height: 1.3;
+            display: none;
+        }
+
+        .preview-label {
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 2px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .preview-content {
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+        }
+
+        .preview-label {
+            background: linear-gradient(to right, #c084fc, #db2777);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            font-weight: 800;
+            letter-spacing: -0.025em;
+        }
+
 
         .index-display {
             font-size: 11px;
@@ -137,6 +172,10 @@
 
             <div class="clipboard-item" id="clipboardItem" style="display: none;">
                 <div class="clipboard-text" id="clipboardText"></div>
+                <div class="preview-row" id="previewRow">
+                    <div class="preview-label" id="previewLabel"></div>
+                    <div class="preview-content" id="previewContent"></div>
+                </div>
             </div>
         </div>
 
@@ -148,9 +187,71 @@
 
     <script>
         const { ipcRenderer } = require('electron');
+        const pako = require('pako');
         let clipboardHistory = [];
         let currentIndex = 0; // 0-based index, 0 = latest item
         let isInteracting = false;
+
+        // Utility functions for text preview
+        function isBase64(str) {
+            if (typeof str !== "string" || str.trim() === "") return false;
+            // Only valid Base64 chars + optional padding
+            return /^[A-Za-z0-9+/]+={0,2}$/.test(str) && str.length % 4 === 0;
+        }
+
+        function isBase64Text(str) {
+            if (!isBase64(str)) return false;
+
+            try {
+                const decoded = atob(str);
+                for (let i = 0; i < decoded.length; i++) {
+                    const code = decoded.charCodeAt(i);
+                    if ((code < 32 && code !== 9 && code !== 10 && code !== 13) || code > 126) {
+                        return false;
+                    }
+                }
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function isBase64Gzip(str) {
+            if (!isBase64(str)) return false;
+            try {
+                const binaryString = atob(str);
+                const len = binaryString.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
+                pako.ungzip(bytes, { to: 'string' });
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function previewText(input) {
+            // Trim input string to remove leading/trailing spaces
+            const trimmedInput = input.trim();
+
+            // 1. Check gzip first
+            if (isBase64Gzip(trimmedInput)) {
+                const binaryString = atob(trimmedInput);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+                const text = pako.ungzip(bytes, { to: 'string' });
+                return { modified: true, previewText: text, contentType: 'gzip' };
+            }
+
+            // 2. Check Base64 text
+            if (isBase64Text(trimmedInput)) {
+                const text = atob(trimmedInput);
+                return { modified: true, previewText: text, contentType: 'base64' };
+            }
+
+            // 3. Otherwise, treat as plain text
+            return { modified: false, previewText: input, contentType: 'str' };
+        }
 
         // Listen for clipboard history updates
         ipcRenderer.on('update-clipboard-history', (event, history) => {
@@ -165,6 +266,9 @@
             const header = document.getElementById('header');
             const clipboardText = document.getElementById('clipboardText');
             const indexDisplay = document.getElementById('indexDisplay');
+            const previewRow = document.getElementById('previewRow');
+            const previewLabel = document.getElementById('previewLabel');
+            const previewContent = document.getElementById('previewContent');
 
             if (clipboardHistory.length === 0) {
                 emptyState.style.display = 'block';
@@ -184,6 +288,29 @@
             // Display current item
             const currentItem = clipboardHistory[currentIndex];
             clipboardText.textContent = currentItem;
+
+            // Use previewText function to get preview
+            const preview = previewText(currentItem);
+
+            if (preview.modified) {
+                let labelText = '';
+                switch (preview.contentType) {
+                    case 'gzip':
+                        labelText = 'Base64 + Gzip Decoded:';
+                        break;
+                    case 'base64':
+                        labelText = 'Base64 Decoded:';
+                        break;
+                    default:
+                        labelText = 'Preview:';
+                }
+
+                previewLabel.textContent = labelText;
+                previewContent.textContent = preview.previewText;
+                previewRow.style.display = 'block';
+            } else {
+                previewRow.style.display = 'none';
+            }
 
             // Update index display (1-based, where 1 is latest)
             const displayIndex = currentIndex + 1;
