@@ -7,6 +7,21 @@ let mainWindow = null;
 let tray = null;
 let isKeyHeld = false;
 let keyReleaseTimer = null;
+let previousApp = null;
+
+// Function to get current active app
+const getCurrentActiveApp = () => {
+    if (process.platform === 'darwin') {
+        try {
+            const { execSync } = require('child_process');
+            const result = execSync('osascript -e "tell application \\"System Events\\" to get name of first application process whose frontmost is true"', { encoding: 'utf8' });
+            return result.trim();
+        } catch (error) {
+            return null;
+        }
+    }
+    return null;
+};
 
 // Function to add item to clipboard history
 const addToHistory = (text) => {
@@ -230,6 +245,9 @@ const registerGlobalShortcut = () => {
                 isKeyHeld = false;
                 mainWindow.hide();
             } else {
+                // Store the current active app before showing clipboard manager
+                previousApp = getCurrentActiveApp();
+
                 // Show window and start key monitoring
                 isKeyHeld = true;
                 mainWindow.show();
@@ -272,9 +290,28 @@ ipcMain.on('clear-clipboard-history', () => {
 
 ipcMain.on('paste-item', (event, text) => {
     clipboard.writeText(text);
-    // Hide window after pasting
+
+    // Hide window first
     if (mainWindow) {
         mainWindow.hide();
+    }
+
+    // Focus previous app and then paste immediately
+    if (process.platform === 'darwin' && previousApp) {
+        const { exec } = require('child_process');
+        // Focus the specific previous app and paste with minimal delay
+        exec(`osascript -e "tell application \\"${previousApp}\\" to activate"`, (error) => {
+            if (!error) {
+                // Paste immediately after focus
+                exec('osascript -e "tell application \\"System Events\\" to keystroke \\"v\\" using command down"', (error) => {
+                    if (error) {
+                        console.log('Could not simulate paste:', error);
+                    }
+                });
+            } else {
+                console.log('Could not focus previous app:', previousApp);
+            }
+        });
     }
 });
 

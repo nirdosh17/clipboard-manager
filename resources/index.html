@@ -67,6 +67,11 @@
             display: flex;
             flex-direction: column;
             justify-content: flex-start;
+            cursor: pointer !important;
+        }
+
+        .text-area * {
+            cursor: pointer !important;
         }
 
         .clipboard-item {
@@ -81,11 +86,10 @@
 
         .clipboard-item:hover {
             color: rgba(255, 255, 255, 1);
-            transform: scale(1.012);
         }
 
         .clipboard-item:active {
-            transform: scale(0.988);
+            color: rgba(255, 255, 255, 0.8);
         }
 
         .clipboard-text {
@@ -125,13 +129,13 @@
 <body>
 
     <div class="clipboard-container" id="clipboardContainer">
-        <div class="text-area">
+        <div class="text-area" onclick="pasteCurrentItem()">
             <div class="empty-state" id="emptyState">
                 <h3>No clipboard items yet</h3>
                 <p>Start copying text to see your clipboard history here</p>
             </div>
 
-            <div class="clipboard-item" id="clipboardItem" style="display: none;" onclick="pasteCurrentItem()">
+            <div class="clipboard-item" id="clipboardItem" style="display: none;">
                 <div class="clipboard-text" id="clipboardText"></div>
             </div>
         </div>
