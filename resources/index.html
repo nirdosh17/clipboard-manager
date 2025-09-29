@@ -230,11 +230,95 @@
             }
         }
 
+        function isUnixTimestamp(str) {
+            const trimmed = str.trim();
+            // Check if it's a valid Unix timestamp (10 digits for seconds, 13 digits for milliseconds)
+            if (!/^\d{10}$|^\d{13}$/.test(trimmed)) return false;
+
+            const timestamp = parseInt(trimmed);
+            const year2000 = 946684800000; // Jan 1, 2000 in milliseconds
+            const year2100 = 4102444800000; // Jan 1, 2100 in milliseconds
+
+            // Convert to milliseconds if it's in seconds
+            const timestampMs = trimmed.length === 10 ? timestamp * 1000 : timestamp;
+
+            // Check if it's a reasonable timestamp (between 2000 and 2100)
+            return timestampMs >= year2000 && timestampMs <= year2100;
+        }
+
+        function isISODateTime(str) {
+            const trimmed = str.trim();
+
+            try {
+                const date = new Date(trimmed);
+                if (isNaN(date.getTime())) return false;
+
+                // Check if it's a reasonable date (between 1970 and 2100)
+                const year = date.getFullYear();
+                if (year < 1970 || year > 2100) return false;
+
+                // Check if the input looks like a datetime string (contains T or is a valid ISO string)
+                return trimmed.includes('T') || trimmed.includes('Z') || trimmed.includes('+') || trimmed.includes('-');
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function formatTimestamp(timestamp) {
+            const trimmed = timestamp.trim();
+
+            // Check if it's a Unix timestamp
+            if (/^\d{10}$|^\d{13}$/.test(trimmed)) {
+                const timestampMs = trimmed.length === 10 ? parseInt(trimmed) * 1000 : parseInt(trimmed);
+                const utcDate = new Date(timestampMs);
+                const localDate = new Date(timestampMs);
+
+                const utcString = utcDate.toISOString();
+                const localString = localDate.toString();
+
+                return `UTC: ${utcString}\nLocal: ${localString}`;
+            }
+
+            // Check if it's an ISO datetime string
+            if (isISODateTime(trimmed)) {
+                const date = new Date(trimmed);
+                const utcString = date.toISOString();
+                const localString = date.toString();
+
+                // Extract timezone info from original string
+                let timezoneInfo = '';
+                if (trimmed.includes('Z')) {
+                    timezoneInfo = ' (UTC)';
+                } else if (trimmed.includes('+') || trimmed.includes('-')) {
+                    const timezoneMatch = trimmed.match(/([+-]\d{2}:\d{2})$/);
+                    if (timezoneMatch) {
+                        timezoneInfo = ` (${timezoneMatch[1]})`;
+                    }
+                }
+
+                return `UTC: ${utcString}\nLocal: ${localString}${timezoneInfo}`;
+            }
+
+            return trimmed;
+        }
+
         function previewText(input) {
             // Trim input string to remove leading/trailing spaces
             const trimmedInput = input.trim();
 
-            // 1. Check gzip first
+            // 1. Check Unix timestamp first
+            if (isUnixTimestamp(trimmedInput)) {
+                const formatted = formatTimestamp(trimmedInput);
+                return { modified: true, previewText: formatted, contentType: 'timestamp' };
+            }
+
+            // 2. Check ISO datetime string
+            if (isISODateTime(trimmedInput)) {
+                const formatted = formatTimestamp(trimmedInput);
+                return { modified: true, previewText: formatted, contentType: 'timestamp' };
+            }
+
+            // 3. Check gzip
             if (isBase64Gzip(trimmedInput)) {
                 const binaryString = atob(trimmedInput);
                 const bytes = new Uint8Array(binaryString.length);
@@ -243,13 +327,13 @@
                 return { modified: true, previewText: text, contentType: 'gzip' };
             }
 
-            // 2. Check Base64 text
+            // 4. Check Base64 text
             if (isBase64Text(trimmedInput)) {
                 const text = atob(trimmedInput);
                 return { modified: true, previewText: text, contentType: 'base64' };
             }
 
-            // 3. Otherwise, treat as plain text
+            // 5. Otherwise, treat as plain text
             return { modified: false, previewText: input, contentType: 'str' };
         }
 
@@ -295,6 +379,9 @@
             if (preview.modified) {
                 let labelText = '';
                 switch (preview.contentType) {
+                    case 'timestamp':
+                        labelText = 'Timestamp:';
+                        break;
                     case 'gzip':
                         labelText = 'Base64 + Gzip Decoded:';
                         break;
