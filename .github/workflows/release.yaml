@@ -1,4 +1,4 @@
-name: Release Clipboard Manager
+name: Release App
 
 on:
   push:
@@ -6,12 +6,8 @@ on:
       - "v*"   # Trigger on version tags like v1.0.0
 
 jobs:
-  build:
-    name: Build binaries
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
+  build-and-release::
+    runs-on: macos-latest
 
     steps:
       - name: Checkout code
@@ -32,27 +28,7 @@ jobs:
       - name: Package app
         run: |
           mkdir -p dist
-          if [[ "${{ runner.os }}" == "Linux" ]]; then
-            zip -r dist/clipboard-manager-linux.zip build/
-          else
-            zip -r dist/clipboard-manager-macos.zip build/
-          fi
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: clipboard-manager-${{ runner.os }}
-          path: dist/*
-
-  release:
-    name: Publish GitHub Release
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./dist
+          zip -r dist/clipboard-manager-macos.zip build/
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
