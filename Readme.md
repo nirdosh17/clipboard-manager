@@ -1,10 +1,9 @@
-# Clipper
+# Clipboard Manager
 
-A system tray clipboard manager that keeps track of your copied items.
+A system tray app that keeps track of your clipboard history with some extra features.
 
 ## Installation
-
-1. Clone the repository
+1. Install node: 20.x.x
 2. Run `npm install`
 3. Run `npm start`
 
@@ -12,8 +11,15 @@ A system tray clipboard manager that keeps track of your copied items.
 
 - CMD + Shift + V to open the clipboard manager.
 - Arrow keys to navigate through the clipboard history.
-- Enter to paste the current item.
-- Escape to hide the clipboard manager.
+- Click on an item or press Enter to paste it.
+- Escape to close the window.
+
+## Release
+Create a new tag following semantic versioning:
+```
+git tag v1.0.0
+git push origin v1.0.0
+```
 
 ## License
 
