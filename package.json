@@ -8,6 +8,7 @@
     "build": "electron-builder",
     "build:mac": "electron-builder --mac",
     "build:dmg": "electron-builder --mac dmg",
+    "build:mac:universal": "electron-builder --mac --universal",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [

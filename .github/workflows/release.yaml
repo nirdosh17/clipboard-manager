@@ -25,20 +25,21 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build app
-        run: npm run build
+      - name: Build MacOS Universal
+        # builds for both x64 and arm64 architectures
+        run: npm run build:mac:universal
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Package app
         run: |
-          mkdir -p dist
-          zip -r dist/clipboard-manager-macos.zip build/
+          mkdir -p dist-release
+          zip -r dist-release/clipboard-manager-macos.zip dist/mac-universal/
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_name }}
-          files: ./dist/**/*
+          files: ./dist-release/**/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
