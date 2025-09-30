@@ -2,15 +2,18 @@ name: Release App
 
 on:
   push:
-    tags:
-      - "v*"   # Trigger on version tags like v1.0.0
+    branches:
+      - main   # Or your default branch
 
 permissions:
   contents: write
 
 jobs:
-  build-and-release:
+  build:
     runs-on: macos-latest
+    strategy:
+      matrix:
+        arch: [arm64, x64]  # Build both architectures in parallel
 
     steps:
       - name: Checkout code
@@ -25,21 +28,53 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build MacOS Universal
-        # builds for both x64 and arm64 architectures
-        run: npm run build:mac:universal
+      # Get version from package.json and set it as an environment variable
+      - name: Get app version
+        id: version
+        run: echo "VERSION=$(jq -r .version package.json)" >> $GITHUB_ENV
+
+      # Build Electron app for current architecture
+      - name: Build macOS ${{ matrix.arch }}
+        run: |
+          if [ "${{ matrix.arch }}" == "arm64" ]; then
+            npm run build:mac:arm64
+          else
+            npm run build:mac:x64
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Package app
+      # Package DMG in zip with top-level folder
+      - name: Package DMG ${{ matrix.arch }}
         run: |
-          mkdir -p dist-release
-          zip -r dist-release/clipboard-manager-macos.zip dist/mac-universal/
+          APP_NAME="Clipboard Manager-${VERSION}-${{ matrix.arch }}"
+          mkdir -p dist-release/"$APP_NAME"
+          cp dist/*.dmg dist-release/"$APP_NAME"/
+          cd dist-release
+          zip -r "clipboard-manager-${{ matrix.arch }}.zip" "$APP_NAME"
 
+      # Upload artifact for release
+      - name: Upload artifact ${{ matrix.arch }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: clipboard-manager-${{ matrix.arch }}
+          path: dist-release/clipboard-manager-${{ matrix.arch }}.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      # Download all artifacts from parallel builds
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./dist-release
+
+      # Create GitHub Release and attach both zips
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.ref_name }}
-          files: ./dist-release/**/*
+          tag_name: "v${{ env.VERSION }}"   # Use version from package.json
+          files: ./dist-release/**/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
