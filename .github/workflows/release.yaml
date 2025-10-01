@@ -37,11 +37,27 @@ jobs:
       - name: Create self-signed cert
         run: |
           CERT_NAME="ClipboardManagerSelfSign"
+          CERT_PASS=""
+          CERT_FILE="selfsign.p12"
+
+          # 1. Generate self-signed certificate
+          openssl req -new -newkey rsa:2048 -x509 -days 365 \
+            -nodes -subj "/CN=$CERT_NAME" \
+            -keyout selfsign.key -out selfsign.crt
+
+          # 2. Package into PKCS#12
+          openssl pkcs12 -export -inkey selfsign.key -in selfsign.crt \
+            -out $CERT_FILE -passout pass:$CERT_PASS
+
+          # 3. Setup temporary keychain
           security create-keychain -p "" build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p "" build.keychain
           security set-keychain-settings build.keychain
-          security create-certificate -c "$CERT_NAME" -k build.keychain
+
+          # 4. Import certificate into keychain
+          security import $CERT_FILE -k build.keychain -P $CERT_PASS -T /usr/bin/codesign
+
           echo "CERT_NAME=$CERT_NAME" >> $GITHUB_ENV
 
       # 🛠️ Build Electron app
@@ -53,15 +69,18 @@ jobs:
             npm run build:mac:x64
           fi
 
-          # Codesign the built app with hardened runtime
+          # Find the built .app
           APP_PATH=$(find dist -name "*.app" -type d | head -n 1)
           echo "Signing $APP_PATH"
+
+          # Codesign with hardened runtime
           codesign --deep --force --verbose \
             --options runtime \
             --sign "$CERT_NAME" "$APP_PATH"
 
           # Verify signature
           codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+          spctl --assess --verbose "$APP_PATH" || true
 
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
