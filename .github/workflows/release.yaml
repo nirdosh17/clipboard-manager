@@ -44,12 +44,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Package DMG in zip with top-level folder
-      - name: Package DMG ${{ matrix.arch }}
+      - name: Package App ${{ matrix.arch }}
         run: |
           APP_NAME="Clipboard Manager-${VERSION}-${{ matrix.arch }}"
           mkdir -p dist-release/"$APP_NAME"
-          cp dist/*.dmg dist-release/"$APP_NAME"/
+          if [ "${{ matrix.arch }}" == "arm64" ]; then
+            cp -r dist/mac-arm64/Clipboard\ Manager.app dist-release/"$APP_NAME"/
+          else
+            cp -r dist/mac/Clipboard\ Manager.app dist-release/"$APP_NAME"/
+          fi
           cd dist-release
           zip -r "clipboard-manager-${{ matrix.arch }}.zip" "$APP_NAME"
 
@@ -83,5 +86,8 @@ jobs:
         with:
           tag_name: "v${{ env.VERSION }}"   # Use version from package.json
           files: ./dist-release/**/*.zip
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+        continue-on-error: true  # Don't fail the workflow if tag already exists
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
