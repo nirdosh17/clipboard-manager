@@ -3,7 +3,8 @@ name: Release App
 on:
   push:
     branches:
-      - main   # Or your default branch
+      - main
+      - codesign
 
 permissions:
   contents: write
@@ -13,7 +14,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        arch: [arm64, x64]  # Build both architectures in parallel
+        arch: [arm64, x64]
 
     steps:
       - name: Checkout code
@@ -28,12 +29,22 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      # Get version from package.json and set it as an environment variable
       - name: Get app version
         id: version
         run: echo "VERSION=$(jq -r .version package.json)" >> $GITHUB_ENV
 
-      # Build Electron app for current architecture
+      # 🔐 Create a temporary self-signed certificate
+      - name: Create self-signed cert
+        run: |
+          CERT_NAME="ClipboardManagerSelfSign"
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security set-keychain-settings build.keychain
+          security create-certificate -c "$CERT_NAME" -k build.keychain
+          echo "CERT_NAME=$CERT_NAME" >> $GITHUB_ENV
+
+      # 🛠️ Build Electron app
       - name: Build macOS ${{ matrix.arch }}
         run: |
           if [ "${{ matrix.arch }}" == "arm64" ]; then
@@ -41,10 +52,22 @@ jobs:
           else
             npm run build:mac:x64
           fi
+
+          # Codesign the built app with hardened runtime
+          APP_PATH=$(find dist -name "*.app" -type d | head -n 1)
+          echo "Signing $APP_PATH"
+          codesign --deep --force --verbose \
+            --options runtime \
+            --sign "$CERT_NAME" "$APP_PATH"
+
+          # Verify signature
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CERT_NAME: ${{ env.CERT_NAME }}
 
-      # Package DMG in zip with top-level folder
+      # 📦 Package DMG in zip
       - name: Package DMG ${{ matrix.arch }}
         run: |
           APP_NAME="Clipboard Manager-${VERSION}-${{ matrix.arch }}"
@@ -53,7 +76,6 @@ jobs:
           cd dist-release
           zip -r "clipboard-manager-${{ matrix.arch }}.zip" "$APP_NAME"
 
-      # Upload artifact for release
       - name: Upload artifact ${{ matrix.arch }}
         uses: actions/upload-artifact@v4
         with:
@@ -67,24 +89,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Get version from package.json
       - name: Get app version
         run: echo "VERSION=$(jq -r .version package.json)" >> $GITHUB_ENV
 
-      # Download all artifacts from parallel builds
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           path: ./dist-release
 
-      # Create GitHub Release and attach both zips
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: "v${{ env.VERSION }}"   # Use version from package.json
+          tag_name: "v${{ env.VERSION }}"
           files: ./dist-release/**/*.zip
           fail_on_unmatched_files: true
           generate_release_notes: true
-        continue-on-error: true  # Don't fail the workflow if tag already exists
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
