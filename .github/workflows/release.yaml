@@ -64,6 +64,13 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Get version from package.json
+      - name: Get app version
+        run: echo "VERSION=$(jq -r .version package.json)" >> $GITHUB_ENV
+
       # Download all artifacts from parallel builds
       - name: Download artifacts
         uses: actions/download-artifact@v4
