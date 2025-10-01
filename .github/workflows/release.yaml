@@ -29,34 +29,40 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      # Get version from package.json
       - name: Get app version
         id: version
         run: echo "VERSION=$(jq -r .version package.json)" >> $GITHUB_ENV
 
-
+      # 🔐 Create and import self-signed certificate
       - name: Create self-signed cert
         run: |
           CERT_NAME="ClipboardManagerSelfSign"
           CERT_PASS="${{ secrets.CERT_PASS }}"
           CERT_FILE="selfsign.p12"
 
-          # 1. Generate self-signed cert
+          # 1️⃣ Generate private key + certificate
           openssl req -new -newkey rsa:2048 -x509 -days 365 \
             -nodes -subj "/CN=$CERT_NAME" \
             -keyout selfsign.key -out selfsign.crt
 
-          # 2. Package into PKCS#12
+          # 2️⃣ Package into PKCS#12 with name
           openssl pkcs12 -export -inkey selfsign.key -in selfsign.crt \
-            -out $CERT_FILE -passout pass:$CERT_PASS
+            -out $CERT_FILE -passout pass:$CERT_PASS -name "$CERT_NAME"
 
-          # 3. Setup temporary keychain
+          # 3️⃣ Create temporary keychain
           security create-keychain -p "" build.keychain
-          security default-keychain -s build.keychain
           security unlock-keychain -p "" build.keychain
           security set-keychain-settings build.keychain
 
-          # 4. Import cert into keychain
+          # 4️⃣ Import certificate into keychain
           security import $CERT_FILE -k build.keychain -P $CERT_PASS -T /usr/bin/codesign
+
+          # 5️⃣ Make sure codesign sees this keychain
+          security list-keychains -d user -s build.keychain
+
+          # 6️⃣ Show available identities (debug)
+          security find-identity -v -p codesigning build.keychain
 
           echo "CERT_NAME=$CERT_NAME" >> $GITHUB_ENV
 
@@ -71,15 +77,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-
       # 🛡️ Codesign the built app
       - name: Codesign app ${{ matrix.arch }}
         run: |
           APP_PATH=$(find dist -name "*.app" -type d | head -n 1)
           echo "Signing $APP_PATH with identity: $CERT_NAME"
 
-          # Ensure our temp keychain is used
+          # Ensure keychain is in search path
           security list-keychains -d user -s build.keychain
+
+          # Show identities for debugging
+          security find-identity -v -p codesigning build.keychain
 
           # Sign with hardened runtime
           codesign --deep --force --verbose \
@@ -87,13 +95,13 @@ jobs:
             --sign "$CERT_NAME" \
             "$APP_PATH"
 
-          # Verify signature
+          # Verify
           codesign --verify --deep --strict --verbose=2 "$APP_PATH"
           spctl --assess --type execute -v "$APP_PATH" || true
         env:
           CERT_NAME: ${{ env.CERT_NAME }}
 
-      # 📦 Package DMG into a zip (separate per arch)
+      # 📦 Package DMG into a zip per architecture
       - name: Package DMG ${{ matrix.arch }}
         run: |
           APP_NAME="Clipboard Manager-${VERSION}-${{ matrix.arch }}"
