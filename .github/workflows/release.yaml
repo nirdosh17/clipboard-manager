@@ -80,8 +80,21 @@ jobs:
       # 🛡️ Codesign the built app
       - name: Codesign app ${{ matrix.arch }}
         run: |
-          APP_PATH=$(find dist -name "*.app" -type d | head -n 1)
+          # Find the app bundle in the correct architecture-specific directory
+          if [ "${{ matrix.arch }}" == "arm64" ]; then
+            APP_PATH="dist/mac-arm64/Clipboard Manager.app"
+          else
+            APP_PATH="dist/mac/Clipboard Manager.app"
+          fi
+
           echo "Signing $APP_PATH with identity: $CERT_NAME"
+
+          # Check if app exists
+          if [ ! -d "$APP_PATH" ]; then
+            echo "Error: App bundle not found at $APP_PATH"
+            ls -la dist/
+            exit 1
+          fi
 
           # Ensure keychain is in search path
           security list-keychains -d user -s build.keychain
