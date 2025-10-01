@@ -44,15 +44,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Package App ${{ matrix.arch }}
+      # Package DMG in zip with top-level folder
+      - name: Package DMG ${{ matrix.arch }}
         run: |
           APP_NAME="Clipboard Manager-${VERSION}-${{ matrix.arch }}"
           mkdir -p dist-release/"$APP_NAME"
-          if [ "${{ matrix.arch }}" == "arm64" ]; then
-            cp -r dist/mac-arm64/Clipboard\ Manager.app dist-release/"$APP_NAME"/
-          else
-            cp -r dist/mac/Clipboard\ Manager.app dist-release/"$APP_NAME"/
-          fi
+          cp dist/*.dmg dist-release/"$APP_NAME"/
           cd dist-release
           zip -r "clipboard-manager-${{ matrix.arch }}.zip" "$APP_NAME"
 
