@@ -33,14 +33,14 @@ jobs:
         id: version
         run: echo "VERSION=$(jq -r .version package.json)" >> $GITHUB_ENV
 
-      # 🔐 Create a temporary self-signed certificate
+
       - name: Create self-signed cert
         run: |
           CERT_NAME="ClipboardManagerSelfSign"
-          CERT_PASS=""
+          CERT_PASS="${{ secrets.CERT_PASS }}"
           CERT_FILE="selfsign.p12"
 
-          # 1. Generate self-signed certificate
+          # 1. Generate self-signed cert
           openssl req -new -newkey rsa:2048 -x509 -days 365 \
             -nodes -subj "/CN=$CERT_NAME" \
             -keyout selfsign.key -out selfsign.crt
@@ -55,7 +55,7 @@ jobs:
           security unlock-keychain -p "" build.keychain
           security set-keychain-settings build.keychain
 
-          # 4. Import certificate into keychain
+          # 4. Import cert into keychain
           security import $CERT_FILE -k build.keychain -P $CERT_PASS -T /usr/bin/codesign
 
           echo "CERT_NAME=$CERT_NAME" >> $GITHUB_ENV
@@ -69,24 +69,28 @@ jobs:
             npm run build:mac:x64
           fi
 
-          # Find the built .app
+      # 🛡️ Codesign the built app
+      - name: Codesign app ${{ matrix.arch }}
+        run: |
           APP_PATH=$(find dist -name "*.app" -type d | head -n 1)
-          echo "Signing $APP_PATH"
+          echo "Signing $APP_PATH with identity: $CERT_NAME"
 
-          # Codesign with hardened runtime
+          # Ensure our temp keychain is used
+          security list-keychains -d user -s build.keychain
+
+          # Sign with hardened runtime
           codesign --deep --force --verbose \
             --options runtime \
-            --sign "$CERT_NAME" "$APP_PATH"
+            --sign "$CERT_NAME" \
+            "$APP_PATH"
 
           # Verify signature
           codesign --verify --deep --strict --verbose=2 "$APP_PATH"
-          spctl --assess --verbose "$APP_PATH" || true
-
+          spctl --assess --type execute -v "$APP_PATH" || true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CERT_NAME: ${{ env.CERT_NAME }}
 
-      # 📦 Package DMG in zip
+      # 📦 Package DMG into a zip (separate per arch)
       - name: Package DMG ${{ matrix.arch }}
         run: |
           APP_NAME="Clipboard Manager-${VERSION}-${{ matrix.arch }}"
@@ -95,6 +99,7 @@ jobs:
           cd dist-release
           zip -r "clipboard-manager-${{ matrix.arch }}.zip" "$APP_NAME"
 
+      # Upload artifact for release
       - name: Upload artifact ${{ matrix.arch }}
         uses: actions/upload-artifact@v4
         with:
@@ -108,14 +113,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Get version from package.json
       - name: Get app version
         run: echo "VERSION=$(jq -r .version package.json)" >> $GITHUB_ENV
 
+      # Download all artifacts
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           path: ./dist-release
 
+      # Create GitHub Release
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
