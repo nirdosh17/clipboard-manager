@@ -68,6 +68,9 @@ jobs:
           else
             npm run build:mac:x64
           fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 
       # 🛡️ Codesign the built app
       - name: Codesign app ${{ matrix.arch }}
