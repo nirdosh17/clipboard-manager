@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - codesign
 
 permissions:
   contents: write
