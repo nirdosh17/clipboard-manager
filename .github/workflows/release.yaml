@@ -41,34 +41,51 @@ jobs:
           CERT_PASS="${{ secrets.CERT_PASS }}"
           CERT_FILE="selfsign.p12"
 
-          # 1️⃣ Generate private key + certificate
+          # 1️⃣ Create OpenSSL config for code signing
+          cat > codesign.conf <<EOF
+          [ req ]
+          default_bits       = 2048
+          distinguished_name = req_distinguished_name
+          x509_extensions    = v3_ca
+
+          [ req_distinguished_name ]
+          commonName = Common Name
+
+          [ v3_ca ]
+          basicConstraints = critical,CA:FALSE
+          keyUsage = critical,digitalSignature
+          extendedKeyUsage = critical,codeSigning
+          EOF
+
+          # 2️⃣ Generate private key + certificate with code signing extensions
           openssl req -new -newkey rsa:2048 -x509 -days 365 \
             -nodes -subj "/CN=$CERT_NAME" \
+            -config codesign.conf \
             -keyout selfsign.key -out selfsign.crt
 
-          # 2️⃣ Package into PKCS#12 with name
+          # 3️⃣ Package into PKCS#12 with name
           openssl pkcs12 -export -inkey selfsign.key -in selfsign.crt \
             -out $CERT_FILE -passout pass:$CERT_PASS -name "$CERT_NAME"
 
-          # 3️⃣ Create temporary keychain
+          # 4️⃣ Create temporary keychain
           KEYCHAIN_PASS=$(openssl rand -base64 32)
           security create-keychain -p "$KEYCHAIN_PASS" build.keychain
           security unlock-keychain -p "$KEYCHAIN_PASS" build.keychain
           security set-keychain-settings -t 3600 -u build.keychain
 
-          # 4️⃣ Import certificate into keychain
-          security import $CERT_FILE -k build.keychain -P $CERT_PASS -T /usr/bin/codesign -T /usr/bin/security
+          # 5️⃣ Import certificate into keychain (use -A to allow all apps to access)
+          security import $CERT_FILE -k build.keychain -P $CERT_PASS -A
 
-          # Set partition list to allow codesign to access the key
+          # Set partition list to allow codesign to access the key without prompting
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASS" build.keychain
 
           echo "KEYCHAIN_PASS=$KEYCHAIN_PASS" >> $GITHUB_ENV
 
-          # 5️⃣ Make sure codesign sees this keychain
+          # 6️⃣ Make sure codesign sees this keychain
           security list-keychains -d user -s build.keychain
           security default-keychain -s build.keychain
 
-          # 6️⃣ Show available identities (debug)
+          # 7️⃣ Show available identities (debug)
           security find-identity -v -p codesigning build.keychain
 
           echo "CERT_NAME=$CERT_NAME" >> $GITHUB_ENV
