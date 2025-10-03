@@ -2,7 +2,7 @@
 
 A system tray app that keeps track of your clipboard history with some extra features.
 
-## Installation
+## Development
 1. Install node: 20.x.x
 2. Run `npm install`
 3. Run `npm start`

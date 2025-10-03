@@ -34,62 +34,6 @@ jobs:
         id: version
         run: echo "VERSION=$(jq -r .version package.json)" >> $GITHUB_ENV
 
-      # 🔐 Create and import self-signed certificate
-      - name: Create self-signed cert
-        run: |
-          CERT_NAME="ClipboardManagerSelfSign"
-          CERT_PASS="${{ secrets.CERT_PASS }}"
-          CERT_FILE="selfsign.p12"
-
-          # 1️⃣ Create OpenSSL config for code signing
-          cat > codesign.conf <<EOF
-          [ req ]
-          default_bits       = 2048
-          distinguished_name = req_distinguished_name
-          x509_extensions    = v3_ca
-
-          [ req_distinguished_name ]
-          commonName = Common Name
-
-          [ v3_ca ]
-          basicConstraints = critical,CA:FALSE
-          keyUsage = critical,digitalSignature
-          extendedKeyUsage = critical,codeSigning
-          EOF
-
-          # 2️⃣ Generate private key + certificate with code signing extensions
-          openssl req -new -newkey rsa:2048 -x509 -days 365 \
-            -nodes -subj "/CN=$CERT_NAME" \
-            -config codesign.conf \
-            -keyout selfsign.key -out selfsign.crt
-
-          # 3️⃣ Package into PKCS#12 with name
-          openssl pkcs12 -export -inkey selfsign.key -in selfsign.crt \
-            -out $CERT_FILE -passout pass:$CERT_PASS -name "$CERT_NAME"
-
-          # 4️⃣ Create temporary keychain
-          KEYCHAIN_PASS=$(openssl rand -base64 32)
-          security create-keychain -p "$KEYCHAIN_PASS" build.keychain
-          security unlock-keychain -p "$KEYCHAIN_PASS" build.keychain
-          security set-keychain-settings -t 3600 -u build.keychain
-
-          # 5️⃣ Import certificate into keychain (use -A to allow all apps to access)
-          security import $CERT_FILE -k build.keychain -P $CERT_PASS -A
-
-          # Set partition list to allow codesign to access the key without prompting
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASS" build.keychain
-
-          echo "KEYCHAIN_PASS=$KEYCHAIN_PASS" >> $GITHUB_ENV
-
-          # 6️⃣ Make sure codesign sees this keychain
-          security list-keychains -d user -s build.keychain
-          security default-keychain -s build.keychain
-
-          # 7️⃣ Show available identities (debug)
-          security find-identity -v -p codesigning build.keychain
-
-          echo "CERT_NAME=$CERT_NAME" >> $GITHUB_ENV
-
       # 🛠️ Build Electron app
       - name: Build macOS ${{ matrix.arch }}
         run: |
@@ -101,56 +45,18 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 🛡️ Codesign the built app
-      - name: Codesign app ${{ matrix.arch }}
+      # 📦 Package app bundle into a zip per architecture
+      - name: Package app ${{ matrix.arch }}
         run: |
-          # Find the app bundle in the correct architecture-specific directory
           if [ "${{ matrix.arch }}" == "arm64" ]; then
             APP_PATH="dist/mac-arm64/Clipboard Manager.app"
           else
             APP_PATH="dist/mac/Clipboard Manager.app"
           fi
 
-          echo "Signing $APP_PATH with identity: $CERT_NAME"
-
-          # Check if app exists
-          if [ ! -d "$APP_PATH" ]; then
-            echo "Error: App bundle not found at $APP_PATH"
-            ls -la dist/
-            exit 1
-          fi
-
-          # Ensure keychain is unlocked and in search path
-          security unlock-keychain -p "$KEYCHAIN_PASS" build.keychain
-          security list-keychains -d user -s build.keychain
-          security default-keychain -s build.keychain
-
-          # Show identities for debugging
-          echo "Available signing identities:"
-          security find-identity -v -p codesigning build.keychain
-
-          # Sign with hardened runtime
-          codesign --deep --force --verbose \
-            --options runtime \
-            --keychain build.keychain \
-            --sign "$CERT_NAME" \
-            "$APP_PATH"
-
-          # Verify
-          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
-          spctl --assess --type execute -v "$APP_PATH" || true
-        env:
-          CERT_NAME: ${{ env.CERT_NAME }}
-          KEYCHAIN_PASS: ${{ env.KEYCHAIN_PASS }}
-
-      # 📦 Package DMG into a zip per architecture
-      - name: Package DMG ${{ matrix.arch }}
-        run: |
-          APP_NAME="Clipboard Manager-${VERSION}-${{ matrix.arch }}"
-          mkdir -p dist-release/"$APP_NAME"
-          cp dist/*.dmg dist-release/"$APP_NAME"/
+          mkdir -p dist-release
           cd dist-release
-          zip -r "clipboard-manager-${{ matrix.arch }}.zip" "$APP_NAME"
+          ditto -c -k --sequesterRsrc --keepParent "../$APP_PATH" "clipboard-manager-${VERSION}-${{ matrix.arch }}.zip"
 
       # Upload artifact for release
       - name: Upload artifact ${{ matrix.arch }}

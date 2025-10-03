@@ -40,8 +40,10 @@
     ],
     "mac": {
       "category": "public.app-category.productivity",
-      "target": "dmg",
-      "icon": "resources/icon-512.png"
+      "target": "dir",
+      "icon": "resources/icon-512.png",
+      "identity": null,
+      "gatekeeperAssess": false
     },
     "dmg": {
       "title": "Clipboard Manager",
