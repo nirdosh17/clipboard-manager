@@ -4,12 +4,50 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'package.json'
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if build should run
+        id: check
+        run: |
+          VERSION=$(jq -r .version package.json)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          # Always build if manually triggered
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual trigger, building..."
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Check if tag already exists
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "Tag v$VERSION already exists, skipping build"
+            echo "should_build=false" >> $GITHUB_OUTPUT
+          else
+            echo "Tag v$VERSION does not exist, building..."
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          fi
+
   build:
+    needs: check-version
+    if: needs.check-version.outputs.should_build == 'true'
     runs-on: macos-latest
     strategy:
       matrix:
@@ -65,7 +103,8 @@ jobs:
           path: dist-release/clipboard-manager-${{ env.VERSION }}-${{ matrix.arch }}.zip
 
   release:
-    needs: build
+    needs: [check-version, build]
+    if: needs.check-version.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
