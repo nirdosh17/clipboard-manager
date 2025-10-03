@@ -3,7 +3,7 @@ name: Release App
 on:
   push:
     branches:
-      - main   # Or your default branch
+      - main
 
 permissions:
   contents: write
@@ -13,7 +13,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        arch: [arm64, x64]  # Build both architectures in parallel
+        arch: [arm64, x64]
 
     steps:
       - name: Checkout code
@@ -28,12 +28,12 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      # Get version from package.json and set it as an environment variable
+      # Get version from package.json
       - name: Get app version
         id: version
         run: echo "VERSION=$(jq -r .version package.json)" >> $GITHUB_ENV
 
-      # Build Electron app for current architecture
+      # 🛠️ Build Electron app
       - name: Build macOS ${{ matrix.arch }}
         run: |
           if [ "${{ matrix.arch }}" == "arm64" ]; then
@@ -44,21 +44,25 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Package DMG in zip with top-level folder
-      - name: Package DMG ${{ matrix.arch }}
+      # 📦 Package app bundle into a zip per architecture
+      - name: Package app ${{ matrix.arch }}
         run: |
-          APP_NAME="Clipboard Manager-${VERSION}-${{ matrix.arch }}"
-          mkdir -p dist-release/"$APP_NAME"
-          cp dist/*.dmg dist-release/"$APP_NAME"/
+          if [ "${{ matrix.arch }}" == "arm64" ]; then
+            APP_PATH="dist/mac-arm64/Clipboard Manager.app"
+          else
+            APP_PATH="dist/mac/Clipboard Manager.app"
+          fi
+
+          mkdir -p dist-release
           cd dist-release
-          zip -r "clipboard-manager-${{ matrix.arch }}.zip" "$APP_NAME"
+          ditto -c -k --sequesterRsrc --keepParent "../$APP_PATH" "clipboard-manager-${VERSION}-${{ matrix.arch }}.zip"
 
       # Upload artifact for release
       - name: Upload artifact ${{ matrix.arch }}
         uses: actions/upload-artifact@v4
         with:
           name: clipboard-manager-${{ matrix.arch }}
-          path: dist-release/clipboard-manager-${{ matrix.arch }}.zip
+          path: dist-release/clipboard-manager-${{ env.VERSION }}-${{ matrix.arch }}.zip
 
   release:
     needs: build
@@ -71,20 +75,20 @@ jobs:
       - name: Get app version
         run: echo "VERSION=$(jq -r .version package.json)" >> $GITHUB_ENV
 
-      # Download all artifacts from parallel builds
+      # Download all artifacts
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           path: ./dist-release
 
-      # Create GitHub Release and attach both zips
+      # Create GitHub Release
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: "v${{ env.VERSION }}"   # Use version from package.json
+          tag_name: "v${{ env.VERSION }}"
           files: ./dist-release/**/*.zip
           fail_on_unmatched_files: true
           generate_release_notes: true
-        continue-on-error: true  # Don't fail the workflow if tag already exists
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

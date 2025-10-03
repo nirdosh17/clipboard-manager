@@ -2,10 +2,27 @@
 
 A system tray app that keeps track of your clipboard history with some extra features.
 
-## Installation
+## Development
 1. Install node: 20.x.x
 2. Run `npm install`
 3. Run `npm start`
+
+## Installation
+
+### Quick Install (Recommended)
+```bash
+curl -fsSL https://raw.githubusercontent.com/nirdosh17/clipboard-manager/main/install.sh | bash
+```
+
+### Manual Installation
+1. Download the latest release for your Mac architecture (arm64 for Apple Silicon, x64 for Intel)
+2. Extract the zip file
+3. Remove the quarantine attribute:
+   ```bash
+   xattr -cr "Clipboard Manager.app"
+   ```
+4. Move the app to your Applications folder
+5. Right-click the app and select "Open" for the first launch
 
 ## Usage
 
