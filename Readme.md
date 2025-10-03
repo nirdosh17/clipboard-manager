@@ -3,8 +3,7 @@
 A lightweight macOS system tray app that keeps track of your clipboard history with keyboard-driven navigation.
 
 ## Demo
-![Demo](https://github.com/user-attachments/assets/4681afa5-28c7-45de-9bd7-d7167949d016)
-
+![Demo](https://github.com/user-attachments/assets/4f1f7534-2364-4d6b-a436-4f7c23416260)
 
 ## Features
 
