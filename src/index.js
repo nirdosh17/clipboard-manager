@@ -94,7 +94,7 @@ const updateTrayMenu = () => {
             }
         },
         {
-            label: 'Clear Clipboard History',
+            label: 'Clear History',
             click: () => {
                 clipboardHistory = [];
                 updateTrayMenu();

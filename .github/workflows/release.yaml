@@ -58,6 +58,9 @@ jobs:
           # 4️⃣ Import certificate into keychain
           security import $CERT_FILE -k build.keychain -P $CERT_PASS -T /usr/bin/codesign -T /usr/bin/security
 
+          # Set partition list to allow codesign to access the key
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
+
           # 5️⃣ Make sure codesign sees this keychain
           security list-keychains -d user -s build.keychain
           security default-keychain -s build.keychain
