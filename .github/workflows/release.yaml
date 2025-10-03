@@ -63,7 +63,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: clipboard-manager-${{ matrix.arch }}
-          path: dist-release/clipboard-manager-${{ matrix.arch }}.zip
+          path: dist-release/clipboard-manager-${{ env.VERSION }}-${{ matrix.arch }}.zip
 
   release:
     needs: build
